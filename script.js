@@ -112,10 +112,14 @@ function startStudentSync() {
 
 // Admin Buttons
 adminStartBtn.addEventListener('click', () => {
+    const lobby = JSON.parse(localStorage.getItem('studyLobby')) || [];
+    if (lobby.length === 0) {
+        if (!confirm("No students have joined yet. Start anyway?")) return;
+    }
     localStorage.setItem('finishedPlayers', '0');
     localStorage.removeItem('studyMasterLeaderboard');
     localStorage.setItem('gameState', 'playing');
-    alert("Game Started!");
+    alert("Game Started with " + lobby.length + " players!");
 });
 
 adminResultsBtn.addEventListener('click', () => {
