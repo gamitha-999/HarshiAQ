@@ -25,7 +25,7 @@ const State = {
     set: (key, val) => localStorage.setItem(key, val),
     getJson: (key) => JSON.parse(localStorage.getItem(key)) || [],
     setJson: (key, val) => localStorage.setItem(key, JSON.stringify(val)),
-    clear: () => localStorage.clear()
+    clearAll: () => localStorage.clear()
 };
 
 // Elements
@@ -38,88 +38,95 @@ const screens = {
     result: document.getElementById('result-screen')
 };
 
-const joinBtn = document.getElementById('join-btn');
-const leaveBtn = document.getElementById('leave-btn');
-const adminStartBtn = document.getElementById('admin-start-btn');
-const adminResultsBtn = document.getElementById('admin-results-btn');
-const adminRestartBtn = document.getElementById('admin-restart-game-btn');
-const adminResetBtn = document.getElementById('admin-reset-btn');
-const restartBtn = document.getElementById('restart-btn');
+// Initialize App
+window.onload = () => {
+    const savedName = State.get('playerName');
+    const savedAdmin = State.get('isAdmin') === 'true';
 
-const playerNameInput = document.getElementById('player-name');
-const displayPlayerName = document.getElementById('display-player-name');
-const playerCountEl = document.getElementById('player-count');
-const adminPlayerCountEl = document.getElementById('admin-player-count');
-const adminPlayerNamesEl = document.getElementById('admin-player-names');
+    if (savedName) {
+        playerName = savedName;
+        isAdmin = savedAdmin;
+        syncAllTabs(); // Initial sync
+        setInterval(syncAllTabs, 1000); // Continuous sync
+    }
+};
 
-// Sync Logic
-window.addEventListener('storage', () => {
-    syncApp();
-});
-
-function syncApp() {
+// Consolidate Sync Logic for ALL screens
+function syncAllTabs() {
     const gameState = State.get('gameState');
     const lobby = State.getJson('studyLobby');
 
-    // Admin UI Update
     if (isAdmin) {
-        if (adminPlayerCountEl) adminPlayerCountEl.textContent = lobby.length;
-        if (adminPlayerNamesEl) {
-            adminPlayerNamesEl.innerHTML = lobby.map(name => `<span class="player-tag">${name}</span>`).join('');
-        }
+        // Admin UI Updates
+        document.getElementById('admin-player-count').textContent = lobby.length;
+        document.getElementById('admin-player-names').innerHTML = lobby.map(n => `<span class="player-tag">${n}</span>`).join('');
         const finished = parseInt(State.get('finishedPlayers')) || 0;
-        adminResultsBtn.disabled = !(finished > 0 && finished >= lobby.length);
-    }
-
-    // Student UI Sync
-    if (!isAdmin && playerName !== "") {
-        if (playerCountEl) playerCountEl.textContent = lobby.length;
-
-        if (gameState === 'playing' && screens.lobby.classList.contains('active')) {
-            startGame();
+        const startBtn = document.getElementById('admin-start-btn');
+        if (gameState === 'playing') {
+            startBtn.textContent = `⌛ In Progress (${finished}/${lobby.length})`;
+            startBtn.disabled = true;
+        } else {
+            startBtn.textContent = "🚀 Start Game Now";
+            startBtn.disabled = false;
         }
+        document.getElementById('admin-results-btn').disabled = (finished === 0);
+        if (!screens.admin.classList.contains('active')) showScreen('admin');
+    } else {
+        // Student UI Sync
+        if (!playerName) return;
 
+        // 1. Kick/Reset Logic (Works on ANY screen)
         if (gameState === 'kick') {
-            alert("Room has been reset by the Teacher.");
+            localStorage.clear();
             location.reload();
+            return;
         }
 
-        if (gameState === 'results' && screens.waiting.classList.contains('active')) {
-            showFinalResults();
+        // 2. Navigation Logic based on Game State
+        if (gameState === 'playing') {
+            if (screens.lobby.classList.contains('active') || screens.home.classList.contains('active')) {
+                startGame();
+            }
+        } else if (gameState === 'results') {
+            if (screens.waiting.classList.contains('active')) {
+                showFinalResults();
+            }
+        } else if (!gameState || gameState === 'lobby') {
+            if (!screens.lobby.classList.contains('active')) {
+                document.getElementById('display-player-name').textContent = playerName;
+                showScreen('lobby');
+            }
+        }
+
+        // 3. Update Lobby Count
+        if (screens.lobby.classList.contains('active')) {
+            document.getElementById('player-count').textContent = lobby.length;
         }
     }
 }
 
 // Join Logic
-joinBtn.addEventListener('click', () => {
-    const name = playerNameInput.value.trim();
-    if (!name) return alert("Please enter your name!");
+document.getElementById('join-btn').addEventListener('click', () => {
+    const name = document.getElementById('player-name').value.trim();
+    if (!name) return alert("Enter your name!");
 
     if (name.toLowerCase() === "admin") {
-        const pw = prompt("Enter Admin Password:");
+        const pw = prompt("Enter Password:");
         if (pw === "harshi") {
-            isAdmin = true;
-            playerName = "Admin";
-            showScreen('admin');
-            startSyncLoop();
-        } else {
-            alert("Access Denied!");
-        }
+            isAdmin = true; playerName = "Admin";
+            State.set('isAdmin', 'true'); State.set('playerName', 'Admin');
+            State.set('gameState', 'lobby');
+            location.reload();
+        } else alert("Denied!");
     } else {
         playerName = name;
-        displayPlayerName.textContent = playerName;
-        registerInLobby(name);
-        showScreen('lobby');
-        startSyncLoop();
+        State.set('isAdmin', 'false'); State.set('playerName', name);
+        registerPlayer(name);
+        location.reload();
     }
 });
 
-leaveBtn.addEventListener('click', () => {
-    removeFromLobby(playerName);
-    location.reload();
-});
-
-function registerInLobby(name) {
+function registerPlayer(name) {
     let lobby = State.getJson('studyLobby');
     if (!lobby.includes(name)) {
         lobby.push(name);
@@ -127,50 +134,33 @@ function registerInLobby(name) {
     }
 }
 
-function removeFromLobby(name) {
-    let lobby = State.getJson('studyLobby');
-    State.setJson('studyLobby', lobby.filter(n => n !== name));
-}
-
 function showScreen(key) {
     Object.values(screens).forEach(s => s.classList.remove('active'));
     screens[key].classList.add('active');
 }
 
-function startSyncLoop() {
-    syncApp();
-    setInterval(syncApp, 1000);
-}
-
-// Admin Actions
-adminStartBtn.addEventListener('click', () => {
+// Admin Controls
+document.getElementById('admin-start-btn').addEventListener('click', () => {
     const lobby = State.getJson('studyLobby');
-    if (lobby.length === 0) return alert("Wait for students to join!");
-    
-    State.set('gameState', 'playing');
+    if (lobby.length === 0) return alert("Wait for students!");
     State.set('finishedPlayers', '0');
     State.setJson('studyMasterLeaderboard', []);
-    alert("Game Started!");
+    State.set('gameState', 'playing');
 });
 
-adminResultsBtn.addEventListener('click', () => {
+document.getElementById('admin-results-btn').addEventListener('click', () => {
     State.set('gameState', 'results');
 });
 
-adminRestartBtn.addEventListener('click', () => {
-    if (confirm("Kick all players and restart?")) {
+document.getElementById('admin-restart-game-btn').addEventListener('click', () => {
+    if (confirm("Restart and Kick All?")) {
         State.set('gameState', 'kick');
-        setTimeout(() => {
-            State.clear();
-            location.reload();
-        }, 1000);
     }
 });
 
-adminResetBtn.addEventListener('click', () => {
-    if (confirm("Clear all data?")) {
-        State.clear();
-        location.reload();
+document.getElementById('admin-reset-btn').addEventListener('click', () => {
+    if (confirm("Clear Everything?")) {
+        State.set('gameState', 'kick');
     }
 });
 
@@ -179,8 +169,7 @@ function startGame() {
     showScreen('game');
     questions = JSON.parse(JSON.stringify(originalQuestions));
     shuffle(questions);
-    currentQuestionIndex = 0;
-    score = 0;
+    currentQuestionIndex = 0; score = 0;
     showQuestion();
 }
 
@@ -192,18 +181,16 @@ function showQuestion() {
     document.getElementById('progress-bar').style.width = `${(currentQuestionIndex / questions.length) * 100}%`;
     document.getElementById('current-score').textContent = score;
 
-    const optionsBox = document.getElementById('answer-options');
-    optionsBox.innerHTML = '';
+    const optBox = document.getElementById('answer-options');
+    optBox.innerHTML = '';
     q.options.forEach((opt, i) => {
         const btn = document.createElement('button');
-        btn.textContent = opt;
-        btn.className = 'option-btn';
+        btn.textContent = opt; btn.className = 'option-btn';
         btn.onclick = () => handleAnswer(i);
-        optionsBox.appendChild(btn);
+        optBox.appendChild(btn);
     });
 
     timeLeft = 15;
-    document.getElementById('time-left').textContent = timeLeft;
     timerInterval = setInterval(() => {
         timeLeft--;
         document.getElementById('time-left').textContent = timeLeft;
@@ -215,59 +202,41 @@ function handleAnswer(idx) {
     clearInterval(timerInterval);
     const btns = document.querySelectorAll('.option-btn');
     btns.forEach(b => b.disabled = true);
-
     const correct = questions[currentQuestionIndex].answer;
-    if (idx === correct) {
-        score += 10;
-        btns[idx].classList.add('correct');
-    } else {
-        score -= 5;
-        if (btns[idx]) btns[idx].classList.add('wrong');
-        btns[correct].classList.add('correct');
-    }
+    if (idx === correct) { score += 10; btns[idx].classList.add('correct'); }
+    else { score -= 5; if (btns[idx]) btns[idx].classList.add('wrong'); btns[correct].classList.add('correct'); }
 
     setTimeout(() => {
         currentQuestionIndex++;
         if (currentQuestionIndex < questions.length) showQuestion();
-        else endCurrentGame();
+        else finishGame();
     }, 1000);
 }
 
-function endCurrentGame() {
+function finishGame() {
     showScreen('waiting');
-    const lb = State.getJson('studyMasterLeaderboard');
-    lb.push({ name: playerName, score: score });
-    State.setJson('studyMasterLeaderboard', lb);
-
-    let fin = parseInt(State.get('finishedPlayers')) || 0;
-    State.set('finishedPlayers', fin + 1);
+    let lb = State.getJson('studyMasterLeaderboard');
+    if (!lb.find(e => e.name === playerName)) {
+        lb.push({ name: playerName, score: score });
+        State.setJson('studyMasterLeaderboard', lb);
+        let fin = parseInt(State.get('finishedPlayers')) || 0;
+        State.set('finishedPlayers', (fin + 1).toString());
+    }
 }
 
 function showFinalResults() {
     showScreen('result');
-    const max = questions.length * 10;
-    const pct = Math.max(0, Math.round((score / max) * 100));
-    document.getElementById('result-percentage').textContent = `${pct}%`;
     document.getElementById('final-score-val').textContent = score;
-    
-    const msg = document.getElementById('result-message');
-    if (pct >= 90) msg.textContent = "A+ Student 🔥";
-    else if (pct >= 70) msg.textContent = "Almost there 💪";
-    else msg.textContent = "Need better habits 😅";
-
     const lb = State.getJson('studyMasterLeaderboard');
     lb.sort((a, b) => b.score - a.score);
-    
-    const body = document.getElementById('leaderboard-body');
-    body.innerHTML = lb.slice(0, 35).map((e, i) => `
-        <tr class="${i === 0 ? 'rank-1-highlight' : ''}">
+    document.getElementById('leaderboard-body').innerHTML = lb.slice(0, 50).map((e, i) => `
+        <tr class="${i === 0 ? 'rank-1-highlight' : ''} ${e.name === playerName ? 'my-rank' : ''}">
             <td>${i + 1}${i === 0 ? ' 👑' : ''}</td>
             <td>${e.name}</td>
             <td>${e.score}</td>
         </tr>
     `).join('');
-    
-    if (lb.length > 0) triggerCelebration();
+    triggerCelebration();
 }
 
 function shuffle(arr) {
@@ -300,4 +269,14 @@ function triggerCelebration() {
     }, 1500);
 }
 
-restartBtn.addEventListener('click', () => location.reload());
+document.getElementById('leave-btn').addEventListener('click', () => {
+    let lobby = State.getJson('studyLobby');
+    State.setJson('studyLobby', lobby.filter(n => n !== playerName));
+    localStorage.clear();
+    location.reload();
+});
+
+document.getElementById('restart-btn').addEventListener('click', () => {
+    localStorage.clear();
+    location.reload();
+});
