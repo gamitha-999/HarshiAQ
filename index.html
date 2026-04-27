@@ -32,13 +32,17 @@
             <div class="player-count-box">
                 Students Joined: <span id="player-count">0</span>
             </div>
+            <button id="leave-btn" class="reset-btn" style="margin-top: 20px;">🚪 Leave Room</button>
         </div>
 
         <!-- Admin Control Panel -->
         <div id="admin-screen" class="screen">
             <h1>👑 Teacher Control Panel</h1>
             <div class="admin-stats">
-                <div class="stat-card">Students: <span id="admin-player-count">0</span></div>
+                <div class="stat-card">
+                    <div>Students Joined: <span id="admin-player-count">0</span></div>
+                    <div id="admin-player-names" class="player-names-list"></div>
+                </div>
             </div>
             <div class="admin-actions">
                 <button id="admin-start-btn" class="main-btn success">🚀 Start Game Now</button>

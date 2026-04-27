@@ -158,11 +158,35 @@ h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: var(--primary); }
 .stat-card {
     background: var(--primary);
     color: white;
-    padding: 1.5rem;
+    padding: 1rem;
     border-radius: 15px;
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     font-weight: bold;
+    text-align: left;
 }
+
+.player-names-list {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    font-weight: normal;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 10px;
+    border-radius: 10px;
+    max-height: 150px;
+    overflow-y: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.player-tag {
+    background: var(--white);
+    color: var(--primary);
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-size: 0.8rem;
+}
+
 .admin-actions button { margin-bottom: 1rem; }
 
 /* Game Elements */
