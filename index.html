@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Master Challenge - Multiplayer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="theme-toggle-container">
+        <button id="theme-toggle" class="theme-btn">🌓</button>
+    </div>
+
+    <div class="game-container">
+        <!-- Home Screen -->
+        <div id="home-screen" class="screen active">
+            <h1>🎮 Study Master Challenge</h1>
+            <p class="subtitle">Join the Classroom Battle!</p>
+            <div class="hero-image">📚</div>
+            <div class="input-group">
+                <input type="text" id="player-name" placeholder="Enter your name..." maxlength="15">
+            </div>
+            <button id="join-btn" class="main-btn">Join Room</button>
+        </div>
+
+        <!-- Waiting Lobby (For Students) -->
+        <div id="lobby-screen" class="screen">
+            <h2>🏠 Classroom Lobby</h2>
+            <p>Welcome, <span id="display-player-name"></span>!</p>
+            <div class="loader"></div>
+            <p class="waiting-msg">Waiting for Teacher to start the game...</p>
+            <div class="player-count-box">
+                Students Joined: <span id="player-count">1</span>/35
+            </div>
+        </div>
+
+        <!-- Admin Control Panel -->
+        <div id="admin-screen" class="screen">
+            <h1>👑 Teacher Control Panel</h1>
+            <div class="admin-stats">
+                <div class="stat-card">Students: <span id="admin-player-count">0</span></div>
+            </div>
+            <div class="admin-actions">
+                <button id="admin-start-btn" class="main-btn success">🚀 Start Game Now</button>
+                <button id="admin-results-btn" class="main-btn" disabled>📊 Show Leaderboard</button>
+                <button id="admin-reset-btn" class="reset-btn">Reset All Data</button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <div class="header">
+                <div class="level-info"><span id="level-name">Topic</span></div>
+                <div class="timer">⏱️ <span id="time-left">15</span>s</div>
+            </div>
+            <div class="progress-container">
+                <div id="progress-bar" class="progress-bar"></div>
+            </div>
+            <div class="question-container">
+                <h2 id="question-text">Question?</h2>
+                <div id="answer-options" class="options-grid"></div>
+            </div>
+            <div class="footer">
+                <div class="score-display">Score: <span id="current-score">0</span></div>
+            </div>
+        </div>
+
+        <!-- Finish Waiting Screen (After playing) -->
+        <div id="waiting-results-screen" class="screen">
+            <h2>✅ Finished!</h2>
+            <div class="hero-image">📝</div>
+            <p>Well done! Your score is saved.</p>
+            <div class="loader"></div>
+            <p class="waiting-msg">Please wait for the teacher to reveal the final scores...</p>
+        </div>
+
+        <!-- Result Screen -->
+        <div id="result-screen" class="screen">
+            <h1>📊 Final Results</h1>
+            <div id="result-percentage" class="result-circle">0%</div>
+            <h2 id="result-message">Great job!</h2>
+            <div class="final-score">Your Score: <span id="final-score-val">0</span></div>
+            
+            <div class="leaderboard-container">
+                <h3>🏆 Top Students</h3>
+                <table id="leaderboard-table">
+                    <thead>
+                        <tr><th>Rank</th><th>Name</th><th>Score</th></tr>
+                    </thead>
+                    <tbody id="leaderboard-body"></tbody>
+                </table>
+            </div>
+            <button id="restart-btn" class="main-btn">Exit Game</button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
