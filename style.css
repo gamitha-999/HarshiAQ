@@ -124,6 +124,7 @@ h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: var(--primary); }
 }
 
 .main-btn.success { background: var(--success); }
+.main-btn.danger { background: var(--danger); }
 .main-btn:disabled { background: #ccc; cursor: not-allowed; }
 
 /* Lobby & Waiting */

@@ -31,6 +31,7 @@ const resultScreen = document.getElementById('result-screen');
 const joinBtn = document.getElementById('join-btn');
 const adminStartBtn = document.getElementById('admin-start-btn');
 const adminResultsBtn = document.getElementById('admin-results-btn');
+const adminRestartGameBtn = document.getElementById('admin-restart-game-btn');
 const adminResetBtn = document.getElementById('admin-reset-btn');
 const restartBtn = document.getElementById('restart-btn');
 
@@ -55,10 +56,15 @@ joinBtn.addEventListener('click', () => {
     playerName = playerNameInput.value.trim();
     if (playerName === "") return alert("Enter your name!");
 
-    if (playerName === "Gamitha@2007") {
-        isAdmin = true;
-        showScreen(adminScreen);
-        startAdminSync();
+    if (playerName === "Admin") {
+        const password = prompt("Enter Admin Password:");
+        if (password === "harshi") {
+            isAdmin = true;
+            showScreen(adminScreen);
+            startAdminSync();
+        } else {
+            alert("Incorrect password!");
+        }
     } else {
         isAdmin = false;
         displayPlayerName.textContent = playerName;
@@ -93,6 +99,8 @@ function startAdminSync() {
             adminResultsBtn.textContent = "📊 Show Final Results";
         } else if (localStorage.getItem('gameState') === 'playing') {
             adminStartBtn.textContent = "⌛ Game in Progress (" + finishedCount + "/" + lobby.length + ")";
+        } else {
+            adminStartBtn.textContent = "🚀 Start Game Now";
         }
     }, 1000);
 }
@@ -100,10 +108,19 @@ function startAdminSync() {
 // Student Sync
 function startStudentSync() {
     const sync = setInterval(() => {
+        const gameState = localStorage.getItem('gameState');
         const lobby = JSON.parse(localStorage.getItem('studyLobby')) || [];
         playerCountEl.textContent = lobby.length;
 
-        if (localStorage.getItem('gameState') === 'playing') {
+        // Reset/Kick logic
+        if (gameState === 'kick') {
+            clearInterval(sync);
+            alert("The teacher has reset the game.");
+            location.reload();
+            return;
+        }
+
+        if (gameState === 'playing') {
             clearInterval(sync);
             startGame();
         }
@@ -127,8 +144,18 @@ adminResultsBtn.addEventListener('click', () => {
     alert("Results revealed to everyone!");
 });
 
+adminRestartGameBtn.addEventListener('click', () => {
+    if (confirm("This will kick all players and return to the home screen. Continue?")) {
+        localStorage.setItem('gameState', 'kick');
+        setTimeout(() => {
+            localStorage.clear();
+            location.reload();
+        }, 1500);
+    }
+});
+
 adminResetBtn.addEventListener('click', () => {
-    if (confirm("Reset everything?")) {
+    if (confirm("Clear all data without kicking? (Use this for maintenance)")) {
         localStorage.clear();
         location.reload();
     }
@@ -207,7 +234,12 @@ function finishGame() {
     localStorage.setItem('finishedPlayers', (finished + 1).toString());
 
     const resultSync = setInterval(() => {
-        if (localStorage.getItem('gameState') === 'results') {
+        const gameState = localStorage.getItem('gameState');
+        if (gameState === 'kick') {
+            clearInterval(resultSync);
+            location.reload();
+        }
+        if (gameState === 'results') {
             clearInterval(resultSync);
             showFinalResults();
         }
