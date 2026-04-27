@@ -29,6 +29,7 @@ const waitingResultsScreen = document.getElementById('waiting-results-screen');
 const resultScreen = document.getElementById('result-screen');
 
 const joinBtn = document.getElementById('join-btn');
+const leaveBtn = document.getElementById('leave-btn');
 const adminStartBtn = document.getElementById('admin-start-btn');
 const adminResultsBtn = document.getElementById('admin-results-btn');
 const adminRestartGameBtn = document.getElementById('admin-restart-game-btn');
@@ -39,6 +40,7 @@ const playerNameInput = document.getElementById('player-name');
 const displayPlayerName = document.getElementById('display-player-name');
 const playerCountEl = document.getElementById('player-count');
 const adminPlayerCountEl = document.getElementById('admin-player-count');
+const adminPlayerNamesEl = document.getElementById('admin-player-names');
 
 // Theme Logic
 const themeToggleBtn = document.getElementById('theme-toggle');
@@ -74,6 +76,11 @@ joinBtn.addEventListener('click', () => {
     }
 });
 
+leaveBtn.addEventListener('click', () => {
+    unregisterPlayer(playerName);
+    location.reload();
+});
+
 function showScreen(screen) {
     screens.forEach(s => s.classList.remove('active'));
     screen.classList.add('active');
@@ -87,12 +94,27 @@ function registerPlayer(name) {
     }
 }
 
+function unregisterPlayer(name) {
+    let lobby = JSON.parse(localStorage.getItem('studyLobby')) || [];
+    lobby = lobby.filter(p => p !== name);
+    localStorage.setItem('studyLobby', JSON.stringify(lobby));
+}
+
 // Admin Sync
 function startAdminSync() {
     setInterval(() => {
         const lobby = JSON.parse(localStorage.getItem('studyLobby')) || [];
         adminPlayerCountEl.textContent = lobby.length;
         
+        // Live update player names list
+        adminPlayerNamesEl.innerHTML = '';
+        lobby.forEach(name => {
+            const span = document.createElement('span');
+            span.className = 'player-tag';
+            span.textContent = name;
+            adminPlayerNamesEl.appendChild(span);
+        });
+
         const finishedCount = parseInt(localStorage.getItem('finishedPlayers')) || 0;
         if (finishedCount > 0 && finishedCount >= lobby.length) {
             adminResultsBtn.disabled = false;
@@ -110,6 +132,14 @@ function startStudentSync() {
     const sync = setInterval(() => {
         const gameState = localStorage.getItem('gameState');
         const lobby = JSON.parse(localStorage.getItem('studyLobby')) || [];
+        
+        // If I am not in the lobby anymore (was I kicked?), reload
+        if (!lobby.includes(playerName)) {
+            clearInterval(sync);
+            location.reload();
+            return;
+        }
+
         playerCountEl.textContent = lobby.length;
 
         // Reset/Kick logic
