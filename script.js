@@ -19,20 +19,30 @@ let timerInterval;
 let playerName = "";
 let isAdmin = false;
 
+// Global State Management
+const State = {
+    get: (key) => localStorage.getItem(key),
+    set: (key, val) => localStorage.setItem(key, val),
+    getJson: (key) => JSON.parse(localStorage.getItem(key)) || [],
+    setJson: (key, val) => localStorage.setItem(key, JSON.stringify(val)),
+    clear: () => localStorage.clear()
+};
+
 // Elements
-const screens = document.querySelectorAll('.screen');
-const homeScreen = document.getElementById('home-screen');
-const lobbyScreen = document.getElementById('lobby-screen');
-const adminScreen = document.getElementById('admin-screen');
-const gameScreen = document.getElementById('game-screen');
-const waitingResultsScreen = document.getElementById('waiting-results-screen');
-const resultScreen = document.getElementById('result-screen');
+const screens = {
+    home: document.getElementById('home-screen'),
+    lobby: document.getElementById('lobby-screen'),
+    admin: document.getElementById('admin-screen'),
+    game: document.getElementById('game-screen'),
+    waiting: document.getElementById('waiting-results-screen'),
+    result: document.getElementById('result-screen')
+};
 
 const joinBtn = document.getElementById('join-btn');
 const leaveBtn = document.getElementById('leave-btn');
 const adminStartBtn = document.getElementById('admin-start-btn');
 const adminResultsBtn = document.getElementById('admin-results-btn');
-const adminRestartGameBtn = document.getElementById('admin-restart-game-btn');
+const adminRestartBtn = document.getElementById('admin-restart-game-btn');
 const adminResetBtn = document.getElementById('admin-reset-btn');
 const restartBtn = document.getElementById('restart-btn');
 
@@ -42,274 +52,229 @@ const playerCountEl = document.getElementById('player-count');
 const adminPlayerCountEl = document.getElementById('admin-player-count');
 const adminPlayerNamesEl = document.getElementById('admin-player-names');
 
-// Theme Logic
-const themeToggleBtn = document.getElementById('theme-toggle');
-let currentTheme = localStorage.getItem('theme') || 'light';
-document.documentElement.setAttribute('data-theme', currentTheme);
-
-themeToggleBtn.addEventListener('click', () => {
-    currentTheme = currentTheme === 'light' ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', currentTheme);
-    localStorage.setItem('theme', currentTheme);
+// Sync Logic
+window.addEventListener('storage', () => {
+    syncApp();
 });
+
+function syncApp() {
+    const gameState = State.get('gameState');
+    const lobby = State.getJson('studyLobby');
+
+    // Admin UI Update
+    if (isAdmin) {
+        if (adminPlayerCountEl) adminPlayerCountEl.textContent = lobby.length;
+        if (adminPlayerNamesEl) {
+            adminPlayerNamesEl.innerHTML = lobby.map(name => `<span class="player-tag">${name}</span>`).join('');
+        }
+        const finished = parseInt(State.get('finishedPlayers')) || 0;
+        adminResultsBtn.disabled = !(finished > 0 && finished >= lobby.length);
+    }
+
+    // Student UI Sync
+    if (!isAdmin && playerName !== "") {
+        if (playerCountEl) playerCountEl.textContent = lobby.length;
+
+        if (gameState === 'playing' && screens.lobby.classList.contains('active')) {
+            startGame();
+        }
+
+        if (gameState === 'kick') {
+            alert("Room has been reset by the Teacher.");
+            location.reload();
+        }
+
+        if (gameState === 'results' && screens.waiting.classList.contains('active')) {
+            showFinalResults();
+        }
+    }
+}
 
 // Join Logic
 joinBtn.addEventListener('click', () => {
-    playerName = playerNameInput.value.trim();
-    if (playerName === "") return alert("Enter your name!");
+    const name = playerNameInput.value.trim();
+    if (!name) return alert("Please enter your name!");
 
-    if (playerName === "Admin") {
-        const password = prompt("Enter Admin Password:");
-        if (password === "harshi") {
+    if (name.toLowerCase() === "admin") {
+        const pw = prompt("Enter Admin Password:");
+        if (pw === "harshi") {
             isAdmin = true;
-            showScreen(adminScreen);
-            startAdminSync();
+            playerName = "Admin";
+            showScreen('admin');
+            startSyncLoop();
         } else {
-            alert("Incorrect password!");
+            alert("Access Denied!");
         }
     } else {
-        isAdmin = false;
+        playerName = name;
         displayPlayerName.textContent = playerName;
-        showScreen(lobbyScreen);
-        registerPlayer(playerName);
-        startStudentSync();
+        registerInLobby(name);
+        showScreen('lobby');
+        startSyncLoop();
     }
 });
 
 leaveBtn.addEventListener('click', () => {
-    unregisterPlayer(playerName);
+    removeFromLobby(playerName);
     location.reload();
 });
 
-function showScreen(screen) {
-    screens.forEach(s => s.classList.remove('active'));
-    screen.classList.add('active');
-}
-
-function registerPlayer(name) {
-    let lobby = JSON.parse(localStorage.getItem('studyLobby')) || [];
+function registerInLobby(name) {
+    let lobby = State.getJson('studyLobby');
     if (!lobby.includes(name)) {
         lobby.push(name);
-        localStorage.setItem('studyLobby', JSON.stringify(lobby));
+        State.setJson('studyLobby', lobby);
     }
 }
 
-function unregisterPlayer(name) {
-    let lobby = JSON.parse(localStorage.getItem('studyLobby')) || [];
-    lobby = lobby.filter(p => p !== name);
-    localStorage.setItem('studyLobby', JSON.stringify(lobby));
+function removeFromLobby(name) {
+    let lobby = State.getJson('studyLobby');
+    State.setJson('studyLobby', lobby.filter(n => n !== name));
 }
 
-// Admin Sync
-function startAdminSync() {
-    setInterval(() => {
-        const lobby = JSON.parse(localStorage.getItem('studyLobby')) || [];
-        adminPlayerCountEl.textContent = lobby.length;
-        
-        // Live update player names list
-        adminPlayerNamesEl.innerHTML = '';
-        lobby.forEach(name => {
-            const span = document.createElement('span');
-            span.className = 'player-tag';
-            span.textContent = name;
-            adminPlayerNamesEl.appendChild(span);
-        });
-
-        const finishedCount = parseInt(localStorage.getItem('finishedPlayers')) || 0;
-        if (finishedCount > 0 && finishedCount >= lobby.length) {
-            adminResultsBtn.disabled = false;
-            adminResultsBtn.textContent = "📊 Show Final Results";
-        } else if (localStorage.getItem('gameState') === 'playing') {
-            adminStartBtn.textContent = "⌛ Game in Progress (" + finishedCount + "/" + lobby.length + ")";
-        } else {
-            adminStartBtn.textContent = "🚀 Start Game Now";
-        }
-    }, 1000);
+function showScreen(key) {
+    Object.values(screens).forEach(s => s.classList.remove('active'));
+    screens[key].classList.add('active');
 }
 
-// Student Sync
-function startStudentSync() {
-    const sync = setInterval(() => {
-        const gameState = localStorage.getItem('gameState');
-        const lobby = JSON.parse(localStorage.getItem('studyLobby')) || [];
-        
-        // If I am not in the lobby anymore (was I kicked?), reload
-        if (!lobby.includes(playerName)) {
-            clearInterval(sync);
-            location.reload();
-            return;
-        }
-
-        playerCountEl.textContent = lobby.length;
-
-        // Reset/Kick logic
-        if (gameState === 'kick') {
-            clearInterval(sync);
-            alert("The teacher has reset the game.");
-            location.reload();
-            return;
-        }
-
-        if (gameState === 'playing') {
-            clearInterval(sync);
-            startGame();
-        }
-    }, 1000);
+function startSyncLoop() {
+    syncApp();
+    setInterval(syncApp, 1000);
 }
 
-// Admin Buttons
+// Admin Actions
 adminStartBtn.addEventListener('click', () => {
-    const lobby = JSON.parse(localStorage.getItem('studyLobby')) || [];
-    if (lobby.length === 0) {
-        if (!confirm("No students have joined yet. Start anyway?")) return;
-    }
-    localStorage.setItem('finishedPlayers', '0');
-    localStorage.removeItem('studyMasterLeaderboard');
-    localStorage.setItem('gameState', 'playing');
-    alert("Game Started with " + lobby.length + " players!");
+    const lobby = State.getJson('studyLobby');
+    if (lobby.length === 0) return alert("Wait for students to join!");
+    
+    State.set('gameState', 'playing');
+    State.set('finishedPlayers', '0');
+    State.setJson('studyMasterLeaderboard', []);
+    alert("Game Started!");
 });
 
 adminResultsBtn.addEventListener('click', () => {
-    localStorage.setItem('gameState', 'results');
-    alert("Results revealed to everyone!");
+    State.set('gameState', 'results');
 });
 
-adminRestartGameBtn.addEventListener('click', () => {
-    if (confirm("This will kick all players and return to the home screen. Continue?")) {
-        localStorage.setItem('gameState', 'kick');
+adminRestartBtn.addEventListener('click', () => {
+    if (confirm("Kick all players and restart?")) {
+        State.set('gameState', 'kick');
         setTimeout(() => {
-            localStorage.clear();
+            State.clear();
             location.reload();
-        }, 1500);
+        }, 1000);
     }
 });
 
 adminResetBtn.addEventListener('click', () => {
-    if (confirm("Clear all data without kicking? (Use this for maintenance)")) {
-        localStorage.clear();
+    if (confirm("Clear all data?")) {
+        State.clear();
         location.reload();
     }
 });
 
-// Game Core
+// Game Logic
 function startGame() {
-    showScreen(gameScreen);
+    showScreen('game');
     questions = JSON.parse(JSON.stringify(originalQuestions));
-    shuffleArray(questions);
+    shuffle(questions);
     currentQuestionIndex = 0;
     score = 0;
     showQuestion();
 }
 
 function showQuestion() {
-    resetState();
+    clearInterval(timerInterval);
     const q = questions[currentQuestionIndex];
     document.getElementById('level-name').textContent = q.level;
     document.getElementById('question-text').textContent = q.question;
     document.getElementById('progress-bar').style.width = `${(currentQuestionIndex / questions.length) * 100}%`;
     document.getElementById('current-score').textContent = score;
 
+    const optionsBox = document.getElementById('answer-options');
+    optionsBox.innerHTML = '';
     q.options.forEach((opt, i) => {
         const btn = document.createElement('button');
         btn.textContent = opt;
         btn.className = 'option-btn';
-        btn.onclick = () => selectAnswer(i);
-        document.getElementById('answer-options').appendChild(btn);
+        btn.onclick = () => handleAnswer(i);
+        optionsBox.appendChild(btn);
     });
-    startTimer();
-}
 
-function resetState() {
-    clearInterval(timerInterval);
     timeLeft = 15;
     document.getElementById('time-left').textContent = timeLeft;
-    document.getElementById('answer-options').innerHTML = '';
-}
-
-function startTimer() {
     timerInterval = setInterval(() => {
         timeLeft--;
         document.getElementById('time-left').textContent = timeLeft;
-        if (timeLeft <= 0) selectAnswer(-1);
+        if (timeLeft <= 0) handleAnswer(-1);
     }, 1000);
 }
 
-function selectAnswer(idx) {
+function handleAnswer(idx) {
     clearInterval(timerInterval);
-    const buttons = document.querySelectorAll('.option-btn');
-    buttons.forEach(b => b.disabled = true);
+    const btns = document.querySelectorAll('.option-btn');
+    btns.forEach(b => b.disabled = true);
 
     const correct = questions[currentQuestionIndex].answer;
     if (idx === correct) {
         score += 10;
-        buttons[idx].classList.add('correct');
+        btns[idx].classList.add('correct');
     } else {
         score -= 5;
-        if (buttons[idx]) buttons[idx].classList.add('wrong');
-        buttons[correct].classList.add('correct');
+        if (btns[idx]) btns[idx].classList.add('wrong');
+        btns[correct].classList.add('correct');
     }
 
     setTimeout(() => {
         currentQuestionIndex++;
         if (currentQuestionIndex < questions.length) showQuestion();
-        else finishGame();
+        else endCurrentGame();
     }, 1000);
 }
 
-function finishGame() {
-    showScreen(waitingResultsScreen);
-    saveFinalScore(playerName, score);
-    
-    let finished = parseInt(localStorage.getItem('finishedPlayers')) || 0;
-    localStorage.setItem('finishedPlayers', (finished + 1).toString());
+function endCurrentGame() {
+    showScreen('waiting');
+    const lb = State.getJson('studyMasterLeaderboard');
+    lb.push({ name: playerName, score: score });
+    State.setJson('studyMasterLeaderboard', lb);
 
-    const resultSync = setInterval(() => {
-        const gameState = localStorage.getItem('gameState');
-        if (gameState === 'kick') {
-            clearInterval(resultSync);
-            location.reload();
-        }
-        if (gameState === 'results') {
-            clearInterval(resultSync);
-            showFinalResults();
-        }
-    }, 1000);
-}
-
-function saveFinalScore(name, score) {
-    let leaderboard = JSON.parse(localStorage.getItem('studyMasterLeaderboard')) || [];
-    leaderboard.push({ name, score });
-    leaderboard.sort((a, b) => b.score - a.score);
-    localStorage.setItem('studyMasterLeaderboard', JSON.stringify(leaderboard));
+    let fin = parseInt(State.get('finishedPlayers')) || 0;
+    State.set('finishedPlayers', fin + 1);
 }
 
 function showFinalResults() {
-    showScreen(resultScreen);
+    showScreen('result');
     const max = questions.length * 10;
     const pct = Math.max(0, Math.round((score / max) * 100));
     document.getElementById('result-percentage').textContent = `${pct}%`;
     document.getElementById('final-score-val').textContent = score;
     
-    if (pct >= 90) document.getElementById('result-message').textContent = "A+ Student 🔥";
-    else if (pct >= 70) document.getElementById('result-message').textContent = "Almost there 💪";
-    else document.getElementById('result-message').textContent = "Need better habits 😅";
+    const msg = document.getElementById('result-message');
+    if (pct >= 90) msg.textContent = "A+ Student 🔥";
+    else if (pct >= 70) msg.textContent = "Almost there 💪";
+    else msg.textContent = "Need better habits 😅";
 
-    displayLeaderboard();
+    const lb = State.getJson('studyMasterLeaderboard');
+    lb.sort((a, b) => b.score - a.score);
+    
+    const body = document.getElementById('leaderboard-body');
+    body.innerHTML = lb.slice(0, 35).map((e, i) => `
+        <tr class="${i === 0 ? 'rank-1-highlight' : ''}">
+            <td>${i + 1}${i === 0 ? ' 👑' : ''}</td>
+            <td>${e.name}</td>
+            <td>${e.score}</td>
+        </tr>
+    `).join('');
+    
+    if (lb.length > 0) triggerCelebration();
 }
 
-function displayLeaderboard() {
-    const leaderboard = JSON.parse(localStorage.getItem('studyMasterLeaderboard')) || [];
-    const body = document.getElementById('leaderboard-body');
-    body.innerHTML = '';
-    leaderboard.slice(0, 35).forEach((entry, i) => {
-        const row = `<tr class="${i === 0 ? 'rank-1-highlight' : ''}">
-            <td>${i + 1}${i === 0 ? ' 👑' : ''}</td>
-            <td>${entry.name}</td>
-            <td>${entry.score}</td>
-        </tr>`;
-        body.innerHTML += row;
-    });
-    if (leaderboard.length > 0) triggerCelebration();
+function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
 }
 
 function triggerCelebration() {
@@ -317,8 +282,7 @@ function triggerCelebration() {
     container.className = 'celebration-container';
     document.body.appendChild(container);
     const gift = document.createElement('div');
-    gift.className = 'gift-box';
-    gift.textContent = '🎁';
+    gift.className = 'gift-box'; gift.textContent = '🎁';
     container.appendChild(gift);
     setTimeout(() => {
         for (let i = 0; i < 50; i++) {
@@ -334,13 +298,6 @@ function triggerCelebration() {
         }
         setTimeout(() => container.remove(), 2500);
     }, 1500);
-}
-
-function shuffleArray(arr) {
-    for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
 }
 
 restartBtn.addEventListener('click', () => location.reload());
