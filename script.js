@@ -39,7 +39,7 @@ const displayPlayerName = document.getElementById('display-player-name');
 const playerCountEl = document.getElementById('player-count');
 const adminPlayerCountEl = document.getElementById('admin-player-count');
 
-// Theme Toggle
+// Theme Logic
 const themeToggleBtn = document.getElementById('theme-toggle');
 let currentTheme = localStorage.getItem('theme') || 'light';
 document.documentElement.setAttribute('data-theme', currentTheme);
@@ -50,7 +50,7 @@ themeToggleBtn.addEventListener('click', () => {
     localStorage.setItem('theme', currentTheme);
 });
 
-// Join Room Logic
+// Join Logic
 joinBtn.addEventListener('click', () => {
     playerName = playerNameInput.value.trim();
     if (playerName === "") return alert("Enter your name!");
@@ -73,7 +73,6 @@ function showScreen(screen) {
     screen.classList.add('active');
 }
 
-// Simulated Backend Sync (LocalStorage based)
 function registerPlayer(name) {
     let lobby = JSON.parse(localStorage.getItem('studyLobby')) || [];
     if (!lobby.includes(name)) {
@@ -82,49 +81,56 @@ function registerPlayer(name) {
     }
 }
 
+// Admin Sync
 function startAdminSync() {
     setInterval(() => {
         const lobby = JSON.parse(localStorage.getItem('studyLobby')) || [];
         adminPlayerCountEl.textContent = lobby.length;
         
-        const finishedCount = JSON.parse(localStorage.getItem('finishedPlayers')) || 0;
+        const finishedCount = parseInt(localStorage.getItem('finishedPlayers')) || 0;
         if (finishedCount > 0 && finishedCount >= lobby.length) {
             adminResultsBtn.disabled = false;
+            adminResultsBtn.textContent = "📊 Show Final Results";
+        } else if (localStorage.getItem('gameState') === 'playing') {
+            adminStartBtn.textContent = "⌛ Game in Progress (" + finishedCount + "/" + lobby.length + ")";
         }
     }, 1000);
 }
 
+// Student Sync
 function startStudentSync() {
     const sync = setInterval(() => {
         const lobby = JSON.parse(localStorage.getItem('studyLobby')) || [];
         playerCountEl.textContent = lobby.length;
 
-        const gameState = localStorage.getItem('gameState');
-        if (gameState === 'playing') {
+        if (localStorage.getItem('gameState') === 'playing') {
             clearInterval(sync);
             startGame();
         }
     }, 1000);
 }
 
-// Admin Actions
+// Admin Buttons
 adminStartBtn.addEventListener('click', () => {
-    localStorage.setItem('gameState', 'playing');
     localStorage.setItem('finishedPlayers', '0');
     localStorage.removeItem('studyMasterLeaderboard');
-    alert("Game Started for all students!");
+    localStorage.setItem('gameState', 'playing');
+    alert("Game Started!");
 });
 
 adminResultsBtn.addEventListener('click', () => {
     localStorage.setItem('gameState', 'results');
+    alert("Results revealed to everyone!");
 });
 
 adminResetBtn.addEventListener('click', () => {
-    localStorage.clear();
-    location.reload();
+    if (confirm("Reset everything?")) {
+        localStorage.clear();
+        location.reload();
+    }
 });
 
-// Game Logic
+// Game Core
 function startGame() {
     showScreen(gameScreen);
     questions = JSON.parse(JSON.stringify(originalQuestions));
@@ -194,7 +200,7 @@ function finishGame() {
     saveFinalScore(playerName, score);
     
     let finished = parseInt(localStorage.getItem('finishedPlayers')) || 0;
-    localStorage.setItem('finishedPlayers', finished + 1);
+    localStorage.setItem('finishedPlayers', (finished + 1).toString());
 
     const resultSync = setInterval(() => {
         if (localStorage.getItem('gameState') === 'results') {
@@ -267,7 +273,7 @@ function triggerCelebration() {
 function shuffleArray(arr) {
     for (let i = arr.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[arr.length - 1]]; // Simple shuffle for logic
+        [arr[i], arr[j]] = [arr[j], arr[i]];
     }
 }
 
